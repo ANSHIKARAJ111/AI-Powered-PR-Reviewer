@@ -1,4 +1,4 @@
-\# CodePilot AI — AI-Powered Pull Request Reviewer
+# CodePilot AI — AI-Powered Pull Request Reviewer
 
 
 
@@ -604,5 +604,10 @@ Current limitations include:
 
 \- AI-generated findings may contain inaccuracies and should be independently verified.
 
-\- Public production deployment requires further security hardening, hosting configuration, and end
+\- Public production deployment requires further security hardening, hosting configuration, and end-to-end production testing.
 
+## Author
+
+**Anshika Raj**
+
+GitHub: [ANSHIKARAJ111](https://github.com/ANSHIKARAJ111)
