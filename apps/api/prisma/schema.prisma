@@ -1,0 +1,98 @@
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ReviewStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model User {
+  id        String   @id @default(uuid())
+  githubId  String   @unique
+  username  String
+  avatarUrl String?
+  createdAt DateTime @default(now())
+
+  repositories Repository[]
+}
+
+model Repository {
+  id           String   @id @default(uuid())
+  githubRepoId String   @unique
+  name         String
+  fullName     String
+  ownerId      String
+  createdAt    DateTime @default(now())
+
+  owner        User          @relation(fields: [ownerId], references: [id])
+  pullRequests PullRequest[]
+}
+
+model PullRequest {
+  id           String   @id @default(uuid())
+  githubPrId   String   @unique
+  number       Int
+  title        String
+  url          String
+  repositoryId String
+  createdAt    DateTime @default(now())
+
+  repository Repository @relation(fields: [repositoryId], references: [id])
+  reviews    Review[]
+
+  @@unique([repositoryId, number])
+}
+
+
+model Review {
+  id            String       @id @default(uuid())
+  pullRequestId String
+  commitSha     String?
+  status        ReviewStatus @default(QUEUED)
+  summary       String?
+  createdAt     DateTime     @default(now())
+  completedAt   DateTime?
+
+  // GitHub publishing reliability
+  githubPostedAt    DateTime?
+  githubReviewId    String?
+  githubPostError   String?
+  githubPostAttempts Int      @default(0)
+  githubLockToken  String?
+  githubLockedAt   DateTime?
+
+  pullRequest PullRequest @relation(fields: [pullRequestId], references: [id])
+  findings    Finding[]
+
+  @@unique([pullRequestId, commitSha])
+}
+
+
+model Finding {
+  id         String   @id @default(uuid())
+  reviewId   String
+  filePath   String
+  lineNumber Int?
+  severity   Severity
+  category   String
+  message    String
+  suggestion String?
+
+  review Review @relation(fields: [reviewId], references: [id])
+}

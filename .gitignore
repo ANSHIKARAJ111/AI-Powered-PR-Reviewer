@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Secrets and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+**/secrets/
+
+# Temporary files
+*.log
+*.db
+*.sqlite
+*.sqlite3
+
+# Local executables
+/tools/cloudflared.exe
+
+# Operating system
+.DS_Store
+Thumbs.db

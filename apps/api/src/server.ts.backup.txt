@@ -1,0 +1,558 @@
+
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+import { z } from "zod";
+import { prisma } from "./config/database.js";
+import { runAIReview } from "./services/reviewService.js";
+import { App } from "@octokit/app";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { createHmac, timingSafeEqual } from "node:crypto";
+
+dotenv.config();
+
+const app = express();
+
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+  })
+);
+
+// ==========================================
+// GITHUB WEBHOOK HANDLER
+// ==========================================
+
+// Temporary in-memory duplicate-delivery protection
+const processedDeliveries = new Map<string, number>();
+
+app.post(
+  "/api/webhooks/github",
+  express.raw({
+    type: "application/json",
+    limit: "1mb",
+  }),
+  (req, res) => {
+    const secret = process.env.GITHUB_WEBHOOK_SECRET;
+
+    if (!secret || !Buffer.isBuffer(req.body)) {
+      res.status(400).json({
+        success: false,
+        message: "Invalid webhook configuration or payload",
+      });
+      return;
+    }
+
+    // Verify GitHub's HMAC-SHA256 signature
+    const signature = req.header("x-hub-signature-256");
+
+    if (!signature || !/^sha256=[a-f0-9]{64}$/i.test(signature)) {
+      res.status(401).json({
+        success: false,
+        message: "Missing or invalid signature",
+      });
+      return;
+    }
+
+    const expected = `sha256=${createHmac("sha256", secret)
+      .update(req.body)
+      .digest("hex")}`;
+
+    const valid = timingSafeEqual(
+      Buffer.from(signature.toLowerCase()),
+      Buffer.from(expected)
+    );
+
+    if (!valid) {
+      res.status(401).json({
+        success: false,
+        message: "Webhook signature verification failed",
+      });
+      return;
+    }
+
+    const event = req.header("x-github-event");
+    const deliveryId = req.header("x-github-delivery");
+
+    if (!deliveryId) {
+      res.status(400).json({
+        success: false,
+        message: "Missing delivery ID",
+      });
+      return;
+    }
+
+    // Ignore repeated deliveries for the same ID
+    if (processedDeliveries.has(deliveryId)) {
+      res.status(200).json({
+        success: true,
+        message: "Duplicate delivery ignored",
+      });
+      return;
+    }
+
+    let payload: {
+      action?: string;
+      installation?: { id?: number };
+      repository?: { full_name?: string };
+      pull_request?: { number?: number };
+    };
+
+    try {
+      payload = JSON.parse(req.body.toString("utf8"));
+    } catch {
+      res.status(400).json({
+        success: false,
+        message: "Invalid JSON payload",
+      });
+      return;
+    }
+
+    // Only process events from the configured repository
+    const allowedRepo = "ANSHIKARAJ111/IntelliTrust-FinGuard";
+    const allowedInstallation = Number(
+      process.env.GITHUB_INSTALLATION_ID
+    );
+
+    if (
+      event !== "pull_request" ||
+      !["opened", "synchronize", "reopened"].includes(
+        payload.action ?? ""
+      ) ||
+      payload.repository?.full_name !== allowedRepo ||
+      payload.installation?.id !== allowedInstallation ||
+      !Number.isSafeInteger(payload.pull_request?.number) ||
+      (payload.pull_request?.number ?? 0) < 1
+    ) {
+      res.status(200).json({
+        success: true,
+        message: "Event ignored",
+      });
+      return;
+    }
+
+    const pullNumber = payload.pull_request!.number!;
+
+    // Retain recent delivery IDs for up to 24 hours.
+    const now = Date.now();
+    for (const [id, timestamp] of processedDeliveries) {
+      if (now - timestamp > 24 * 60 * 60 * 1000) {
+        processedDeliveries.delete(id);
+      }
+    }
+
+    processedDeliveries.set(deliveryId, now);
+
+    console.log(
+      `Verified webhook: ${payload.action} PR #${pullNumber}`
+    );
+
+    // Acknowledge GitHub immediately
+    res.status(202).json({
+      success: true,
+      message: "Webhook accepted. AI review starting.",
+      pullNumber,
+    });
+
+    // Process review asynchronously
+    void runAIReview(pullNumber)
+      .then((review) => {
+        console.log(
+          `Automatic review saved: ${review.id}`
+        );
+      })
+      .catch((error) => {
+        console.error("Automatic review failed:", error);
+      });
+  }
+);
+
+
+app.use(express.json());
+
+// ==============================
+// HOME ROUTE
+// ==============================
+
+app.get("/", (_req, res) => {
+  res.status(200).json({
+    message: "Welcome to CodePilot AI",
+    status: "running",
+    endpoints: [
+      "/api/health",
+      "/api/users",
+      "/api/test",
+    ],
+  });
+});
+
+// ==============================
+// HEALTH CHECK
+// ==============================
+
+app.get("/api/health", (_req, res) => {
+  res.status(200).json({
+    success: true,
+    service: "CodePilot AI Backend",
+  });
+});
+
+// ==============================
+// USER VALIDATION
+// ==============================
+
+const userSchema = z.object({
+  githubId: z.string().min(1),
+  username: z.string().min(1),
+  avatarUrl: z.string().url().optional(),
+});
+
+// ==============================
+// TEST POST API
+// ==============================
+
+app.post("/api/test", (req, res) => {
+  console.log("TEST POST received:", req.body);
+
+  return res.status(200).json({
+    success: true,
+    message: "POST request working",
+    received: req.body,
+  });
+});
+
+// ==============================
+// CREATE OR UPDATE USER
+// ==============================
+
+app.post("/api/users", async (req, res) => {
+  console.log("POST /api/users reached");
+
+  try {
+    const parsed = userSchema.safeParse(req.body);
+
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid user data",
+        errors: parsed.error.flatten(),
+      });
+    }
+
+    const { githubId, username, avatarUrl } = parsed.data;
+
+    console.log("Starting Prisma upsert:", githubId);
+
+    const user = await prisma.user.upsert({
+      where: {
+        githubId,
+      },
+      update: {
+        username,
+        ...(avatarUrl !== undefined ? { avatarUrl } : {}),
+      },
+      create: {
+        githubId,
+        username,
+        ...(avatarUrl !== undefined ? { avatarUrl } : {}),
+      },
+    });
+
+    console.log("Prisma upsert completed:", user.id);
+
+    // IMPORTANT: Send response to client
+    return res.status(200).json({
+      success: true,
+      message: "User saved successfully",
+      user,
+    });
+
+  } catch (error) {
+    console.error("Create user error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+});
+
+// ==============================
+// GET ALL USERS
+// ==============================
+
+app.get("/api/users", async (_req, res) => {
+  try {
+    console.log("Fetching users from PostgreSQL...");
+
+    const users = await prisma.user.findMany({
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    console.log("Users fetched:", users.length);
+
+    return res.status(200).json({
+      success: true,
+      total: users.length,
+      users,
+    });
+
+  } catch (error) {
+    console.error("Fetch users error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+});
+
+// ==============================
+// START EXPRESS SERVER
+// ==============================
+
+
+/**
+ * GET /api/reviews
+ * Fetch all AI code reviews with findings
+ */
+app.get("/api/reviews", async (_req, res) => {
+  try {
+    const reviews = await prisma.review.findMany({
+      orderBy: {
+        createdAt: "desc",
+      },
+      include: {
+        findings: true,
+        pullRequest: {
+          include: {
+            repository: true,
+          },
+        },
+      },
+    });
+
+    res.json({
+      success: true,
+      total: reviews.length,
+      reviews,
+    });
+  } catch (error) {
+    console.error("Failed to fetch reviews:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch AI reviews",
+    });
+  }
+});
+
+/**
+ * GET /api/reviews/:id
+ * Fetch a single AI review
+ */
+app.get("/api/reviews/:id", async (req, res) => {
+  try {
+    const id = String(req.params.id);
+
+    const review = await prisma.review.findUnique({
+      where: { id },
+      include: {
+        findings: true,
+        pullRequest: {
+          include: {
+            repository: true,
+          },
+        },
+      },
+    });
+
+    if (!review) {
+      res.status(404).json({
+        success: false,
+        message: "Review not found",
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      review,
+    });
+  } catch (error) {
+    console.error("Failed to fetch review:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch AI review",
+    });
+  }
+});
+
+
+// ==============================
+// RUN AI REVIEW API
+// ==============================
+
+// Prevent multiple simultaneous expensive reviews
+const activeReviews = new Set<number>();
+
+const runReviewSchema = z.object({
+  pullNumber: z.number().int().positive().max(100000),
+});
+
+/**
+ * POST /api/reviews/run
+ * Example body: { "pullNumber": 1 }
+ *
+ * Local development endpoint.
+ */
+app.post("/api/reviews/run", async (req, res) => {
+  // Do not expose this unauthenticated endpoint publicly
+  const remoteAddress = req.socket.remoteAddress;
+
+  const isLocal =
+    remoteAddress === "127.0.0.1" ||
+    remoteAddress === "::1" ||
+    remoteAddress === "::ffff:127.0.0.1";
+
+  if (!isLocal) {
+    res.status(403).json({
+      success: false,
+      message: "Review trigger is restricted to localhost",
+    });
+    return;
+  }
+
+  const parsed = runReviewSchema.safeParse(req.body);
+
+  if (!parsed.success) {
+    res.status(400).json({
+      success: false,
+      message: "Provide a valid pullNumber",
+    });
+    return;
+  }
+
+  const { pullNumber } = parsed.data;
+
+  if (activeReviews.has(pullNumber)) {
+    res.status(409).json({
+      success: false,
+      message: `Review for PR #${pullNumber} is already running`,
+    });
+    return;
+  }
+
+  activeReviews.add(pullNumber);
+
+  try {
+    console.log(`Starting AI review for PR #${pullNumber}`);
+
+    const review = await runAIReview(pullNumber);
+
+    res.status(201).json({
+      success: true,
+      message: "AI review completed successfully",
+      reviewId: review.id,
+      totalFindings: review.findings.length,
+      review,
+    });
+  } catch (error) {
+    console.error("Run AI review failed:", error);
+
+    const message =
+      error instanceof Error ? error.message : "Unknown error";
+
+    res.status(500).json({
+      success: false,
+      message: "AI review could not be completed",
+      error: message,
+    });
+  } finally {
+    activeReviews.delete(pullNumber);
+  }
+});
+
+
+// ======================================
+// FETCH GITHUB PULL REQUESTS
+// ======================================
+
+app.get("/api/github/pulls", async (_req, res) => {
+  try {
+    const appId = process.env.GITHUB_APP_ID;
+    const installationId = process.env.GITHUB_INSTALLATION_ID;
+    const keyPath = process.env.GITHUB_PRIVATE_KEY_PATH;
+
+    if (!appId || !installationId || !keyPath) {
+      res.status(500).json({
+        success: false,
+        message: "GitHub App configuration missing",
+      });
+      return;
+    }
+
+    const privateKey = readFileSync(
+      resolve(process.cwd(), keyPath),
+      "utf8"
+    );
+
+    const githubApp = new App({
+      appId,
+      privateKey,
+    });
+
+    const octokit = await githubApp.getInstallationOctokit(
+      Number(installationId)
+    );
+
+    const response = await octokit.request(
+      "GET /repos/{owner}/{repo}/pulls",
+      {
+        owner: "ANSHIKARAJ111",
+        repo: "IntelliTrust-FinGuard",
+        state: "open",
+        per_page: 100,
+      }
+    );
+
+    const pulls = response.data.map((pr) => ({
+      number: pr.number,
+      title: pr.title,
+      url: pr.html_url,
+      state: pr.state,
+    }));
+
+    res.json({
+      success: true,
+      total: pulls.length,
+      pulls,
+    });
+  } catch (error) {
+    console.error("Failed to fetch GitHub PRs:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch GitHub pull requests",
+    });
+  }
+});
+
+
+
+
+const PORT = Number(process.env.PORT) || 5000;
+
+app.listen(PORT, () => {
+  console.log("\n==============================");
+  console.log("CodePilot AI Backend Started!");
+  console.log("==============================");
+  console.log(`Server: http://localhost:${PORT}`);
+  console.log(`Health API: http://localhost:${PORT}/api/health`);
+  console.log(`Users API: http://localhost:${PORT}/api/users`);
+  console.log("==============================\n");
+});
