@@ -25,3 +25,14 @@ coverage/
 # Operating system
 .DS_Store
 Thumbs.db
+# TypeScript generated files
+apps/api/**/*.js
+apps/api/**/*.js.map
+apps/api/**/*.d.ts
+apps/api/**/*.d.ts.map
+
+# Preserve actual JavaScript source files if needed
+!apps/api/src/**/*.js
+
+# Build output
+apps/api/dist/

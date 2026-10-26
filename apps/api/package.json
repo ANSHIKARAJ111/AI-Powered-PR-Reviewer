@@ -4,9 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "tsx watch src/server.ts"
-  },
+  "dev": "tsx watch src/server.ts",
+  "build": "prisma generate && tsc -p tsconfig.build.json",
+  "test": "vitest run"
+},
+
   "keywords": [],
   "author": "",
   "license": "ISC",
