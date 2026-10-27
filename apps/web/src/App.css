@@ -1470,3 +1470,76 @@ h1 {
     scroll-behavior: auto !important;
   }
 }
+/* ===================================
+   GITHUB AUTHENTICATION
+=================================== */
+
+.auth-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(140deg, #080d1e, #171541);
+  padding: 24px;
+  color: #f7f7ff;
+}
+
+.auth-panel {
+  width: min(100%, 430px);
+  border: 1px solid #35365d;
+  border-radius: 20px;
+  background: #11172c;
+  padding: 42px 32px;
+  text-align: center;
+  box-shadow: 0 24px 70px #0005;
+}
+
+.auth-logo {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 18px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #6655ef, #398fe3);
+  font-size: 23px;
+  font-weight: 800;
+}
+
+.auth-panel h1 {
+  font-size: 29px;
+  margin: 8px 0 10px;
+}
+
+.auth-panel p {
+  color: #c4cee2;
+  margin-bottom: 24px;
+}
+
+.auth-login-btn {
+  display: block;
+  background: #675af0;
+  border-radius: 11px;
+  padding: 14px 18px;
+  color: white;
+  text-decoration: none;
+  font-weight: 700;
+  margin: 22px 0;
+}
+
+.auth-login-btn:hover {
+  background: #786af5;
+}
+
+.auth-panel small {
+  display: block;
+  color: #b2bad0;
+}
+
+.auth-error {
+  color: #ffa5b1 !important;
+}
+
+.signed-in-user {
+  font-size: 13px;
+  color: #98a3bb;
+}

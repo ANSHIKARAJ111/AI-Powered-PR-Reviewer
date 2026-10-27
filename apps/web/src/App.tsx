@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useMemo, useState } from "react";
 import "./App.css";
 
@@ -33,6 +32,17 @@ type Review = {
       fullName: string;
     };
   };
+};
+
+type AuthUser = {
+  id: number;
+  login: string;
+  avatarUrl?: string;
+};
+
+type AuthResponse = {
+  authenticated: boolean;
+  user?: AuthUser;
 };
 
 type GitHubPull = {
@@ -132,6 +142,9 @@ function SkeletonDashboard() {
 }
 
 export default function App() {
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [authError, setAuthError] = useState("");
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
   const [page, setPage] = useState<Page>("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -207,9 +220,36 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    let active = true;
+
+    async function checkSession() {
+      try {
+        const response = await fetch("/api/auth/me", {
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+        if (!response.ok) throw new Error("Session check failed");
+        const data = (await response.json()) as AuthResponse;
+        if (active) setAuthUser(data.authenticated ? data.user ?? null : null);
+      } catch {
+        if (active) {
+          setAuthUser(null);
+          setAuthError("Unable to verify your login. Please retry.");
+        }
+      } finally {
+        if (active) setAuthLoading(false);
+      }
+    }
+
+    void checkSession();
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!authUser) return;
     void loadReviews();
     void loadPulls();
-  }, [loadReviews, loadPulls]);
+  }, [authUser, loadReviews, loadPulls]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -398,6 +438,50 @@ export default function App() {
 
   const apiIssue = Boolean(error || pullError);
 
+  async function logout() {
+    try {
+      const response = await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "same-origin",
+      });
+      if (!response.ok) throw new Error("Logout failed");
+      setAuthUser(null);
+      setReviews([]);
+      setPulls([]);
+      window.location.assign("/");
+    } catch {
+      setAuthError("Could not log out. Please retry.");
+    }
+  }
+
+  if (authLoading) {
+    return (
+      <div className="auth-screen" role="status">
+        <div className="auth-panel">
+          <h1>CodePilot AI</h1>
+          <p>Checking your GitHub session...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!authUser) {
+    return (
+      <div className="auth-screen">
+        <div className="auth-panel">
+          <div className="auth-logo">{"</>"}</div>
+          <h1>CodePilot AI</h1>
+          <p>Secure AI-powered code review dashboard</p>
+          {authError && <p className="auth-error" role="alert">{authError}</p>}
+          <a className="auth-login-btn" href="/api/auth/github">
+            Sign in with GitHub
+          </a>
+          <small>Only approved GitHub accounts can access this workspace.</small>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="app-shell">
       <aside
@@ -500,6 +584,10 @@ export default function App() {
           </div>
 
           <div className="header-actions">
+            <span className="signed-in-user">@{authUser.login}</span>
+            <button type="button" className="icon-btn" title="Sign out" onClick={() => void logout()}>
+              Sign out
+            </button>
             <button
               type="button"
               className="icon-btn"
