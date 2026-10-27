@@ -156,7 +156,7 @@ app.get("/api/auth/github", (_req: Request, res: Response) => {
   });
   const redirectUri = `${FRONTEND_ORIGIN}/api/auth/github/callback`;
   const params = new URLSearchParams({
-    client_id: process.env.GITHUB_OAUTH_CLIENT_ID!,
+    client_id: process.env.GITHUB_OAUTH_CLIENT_ID!.trim(),
     redirect_uri: redirectUri,
     state,
   });
@@ -183,8 +183,8 @@ app.get("/api/auth/github/callback", async (req: Request, res: Response) => {
       method: "POST",
       headers: { Accept: "application/json", "Content-Type": "application/json" },
       body: JSON.stringify({
-        client_id: process.env.GITHUB_OAUTH_CLIENT_ID,
-        client_secret: process.env.GITHUB_OAUTH_CLIENT_SECRET,
+        client_id: process.env.GITHUB_OAUTH_CLIENT_ID?.trim(),
+        client_secret: process.env.GITHUB_OAUTH_CLIENT_SECRET?.trim(),
         code,
         redirect_uri: `${FRONTEND_ORIGIN}/api/auth/github/callback`,
       }),
