@@ -36,3 +36,5 @@ apps/api/**/*.d.ts.map
 
 # Build output
 apps/api/dist/
+# Private cloud database configuration
+apps/api/.env.neon
