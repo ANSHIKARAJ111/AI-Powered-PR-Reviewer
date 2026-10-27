@@ -1,238 +1,199 @@
-CodePilot AI — AI-Powered Pull Request Reviewer
-Automating Code Reviews with Google Gemini and GitHub Apps
-CodePilot AI is a full-stack AI-powered GitHub Pull Request review platform.
-Key Features
-- AI-Powered Code Analysis: Uses Google Gemini to review pull requests.
-- Automated GitHub Integration: Processes GitHub webhook events.
-- Inline Review Comments: Posts findings on relevant lines of code within GitHub pull requests.
-- Security Vulnerability Detection: Identifies potential security issues, runtime bugs, missing validation, and code quality problems.
-- Severity Classification: Categorizes findings as CRITICAL, HIGH, MEDIUM, or LOW.
-- Interactive Analytics Dashboard: Displays review statistics, severity distribution, findings, and review history.
-- Search and Filtering: Enables searching reviews, filtering findings by severity, and sorting results.
-- Responsive UI: Supports desktop and mobile layouts with dark and light themes.
-- Persistent Storage: Stores review history and findings using PostgreSQL and Prisma ORM.
-- Duplicate Review Prevention: Uses pull request commit SHAs and database uniqueness constraints to reduce redundant reviews.
-- Publishing Recovery: Tracks GitHub publishing status, attempts retries, and supports startup recovery of unpublished reviews.
-- Webhook Security: Validates GitHub webhook signatures using HMAC-SHA256.
-- API Rate Limiting: Protects application endpoints against excessive requests.
-- Automated Testing: Includes validation, API integration, webhook security, and rate-limit tests using Vitest.
-Technology Stack
-Layer	Technologies
-Frontend	React, TypeScript, Vite, CSS
-Backend	Node.js, Express.js, TypeScript
-AI Engine	Google Gemini
-GitHub Integration	GitHub Apps, GitHub REST API, Webhooks, Octokit
-Database	PostgreSQL
-ORM	Prisma
-Validation	Zod
-Testing	Vitest
-Development Tools	Git, GitHub, VS Code, Cloudflare Quick Tunnel
+<div align="center">
 
+# CodePilot AI
 
-System Architecture
-                  GitHub Pull Request
-                          |
-                          v
-                   GitHub Webhook
-                          |
-                          v
-                HMAC Signature Validation
-                          |
-                          v
-                Express.js Backend API
-                          |
-               +----------+-----------+
-               |                      |
-               v                      v
-       GitHub REST API          PostgreSQL
-               |                 + Prisma
-               v                      ^
-        Fetch PR Metadata              |
-        and Code Diffs                 |
-               |                      |
-               v                      |
-        Google Gemini AI               |
-               |                      |
-               v                      |
-      Structured AI Findings ----------+
-               |
-               v
-     GitHub Review Publishing
-       + Inline Comments
-               |
-               v
-       GitHub Pull Request
+### AI-Powered GitHub Pull Request Reviewer
 
-          React + Vite Dashboard
-                  |
-                  v
-          Express REST API
-                  |
-                  v
-       Reviews and Analytics
-          from PostgreSQL
-How CodePilot AI Works
-1. Pull Request Detection
+**Automated code reviews, actionable findings, and a centralized dashboard for GitHub pull requests.**
 
-A developer opens or updates a pull request in a GitHub repository where the CodePilot GitHub App is installed.
+[**Live Dashboard**](https://codepilot-ai-web-navy.vercel.app) · [**GitHub Repository**](https://github.com/ANSHIKARAJ111/AI-Powered-PR-Reviewer)
 
-2. Webhook Verification
+</div>
 
-GitHub sends a webhook event to the backend. The server validates its HMAC-SHA256 signature before processing the event.
+---
 
-3. Code Diff Retrieval
+## Overview
 
-The backend authenticates through the GitHub App and retrieves pull request information and modified code.
+CodePilot AI is a full-stack application that reviews GitHub pull requests using **Google Gemini AI**. It integrates with GitHub through a GitHub App and signed webhooks to analyze pull-request changes, identify potential bugs and code-quality issues, and publish review feedback to GitHub. A separate web dashboard allows an authorized user to browse reviews, inspect findings, and view analytics.
 
-4. AI-Powered Analysis
+The project combines AI-assisted code analysis, webhook automation, a relational database, and a deployed web interface in a single workflow.
 
-The code diff is sent to Google Gemini, which analyzes potential runtime bugs, security vulnerabilities, missing input validation, and code quality issues.
+## Key Features
 
-5. Structured Findings Validation
+- **AI-powered PR analysis:** Uses Google Gemini to analyze pull-request changes and produce review findings.
+- **Automated GitHub integration:** Handles signed GitHub webhook events, including pull-request updates, and triggers reviews.
+- **GitHub review publishing:** Posts review feedback back to the associated pull request.
+- **Manual review:** Allows an authenticated user to trigger a review from the dashboard.
+- **Findings Explorer:** Shows severity, category, file path, line number, explanation, and suggested remediation.
+- **Review history and analytics:** Stores and displays completed reviews and their findings.
+- **GitHub OAuth authentication:** Restricts dashboard API access to an authorized GitHub account using a signed session cookie.
+- **Persistent storage:** Uses PostgreSQL through Prisma ORM.
+- **Cloud deployment:** React frontend on Vercel, Express API on Render, and PostgreSQL on Neon.
 
-AI-generated findings are validated using Zod, and file paths and comment line numbers are checked against the available pull request diff.
+## Architecture
 
-6. Database Storage
+```mermaid
+flowchart TD
+    Developer[Developer] -->|Opens or updates PR| GitHub[GitHub Repository]
+    GitHub -->|Signed webhook| Webhook[GitHub Webhook Handler]
+    Webhook --> Review[Review Service]
+    Review -->|PR changes| GitHubAPI[GitHub API]
+    Review -->|Analyze diff| Gemini[Google Gemini AI]
+    Gemini -->|Findings and suggestions| Review
+    Review -->|Persist results| DB[(Neon PostgreSQL)]
+    Review -->|Publish review| GitHubAPI
 
-Review summaries, findings, severity levels, and commit SHAs are stored in PostgreSQL using Prisma.
+    User[Authorized Dashboard User] --> Frontend[React + Vite on Vercel]
+    Frontend -->|GitHub OAuth / Authenticated API| Backend[Express + TypeScript on Render]
+    Backend --> DB
+    Backend -->|Manual review request| Review
+```
 
-7. GitHub Feedback
+### Review Workflow
 
-The application publishes an automated GitHub review, including a summary and inline comments when findings can be mapped to verified diff lines.
+1. A developer opens or updates a pull request in a repository where the GitHub App is installed.
+2. GitHub sends a signed webhook event to the backend.
+3. The backend validates the webhook and retrieves pull-request changes.
+4. Gemini AI analyzes the changes and generates actionable findings.
+5. The application saves results in PostgreSQL and publishes feedback on GitHub.
+6. An authorized user can inspect the review, findings, and analytics in the dashboard.
 
-8. Dashboard Visualization
+## Technology Stack
 
-The React dashboard displays review history, issue severity distribution, statistics, and suggested fixes.
-Project Structure
+| Layer | Technology |
+| --- | --- |
+| Frontend | React, TypeScript, Vite |
+| Backend | Node.js, Express, TypeScript |
+| AI Analysis | Google Gemini AI |
+| Version Control Integration | GitHub App, GitHub REST API, Webhooks |
+| Authentication | GitHub OAuth, signed HTTP-only session cookies |
+| ORM | Prisma |
+| Database | PostgreSQL (Neon) |
+| Frontend Hosting | Vercel |
+| Backend Hosting | Render |
+
+## Live Demo
+
+- **Frontend:** https://codepilot-ai-web-navy.vercel.app
+- **Backend:** https://codepilot-ai-api.onrender.com
+- **Source:** https://github.com/ANSHIKARAJ111/AI-Powered-PR-Reviewer
+
+> **Access note:** The deployed dashboard is configured for an allowlisted GitHub account. Other GitHub accounts cannot access private review data unless explicitly authorized by the application owner.
+
+## Project Structure
+
+```text
 CodePilot_AI/
-|
-+-- apps/
-|   |
-|   +-- api/
-|   |   +-- prisma/
-|   |   |   +-- migrations/
-|   |   |   +-- schema.prisma
-|   |   |
-|   |   +-- src/
-|   |   |   +-- config/
-|   |   |   +-- services/
-|   |   |   |   +-- reviewService.ts
-|   |   |   |   +-- recoveryService.ts
-|   |   |   +-- generated/
-|   |   |   +-- server.ts
-|   |   |
-|   |   +-- tests/
-|   |   |   +-- basic.test.ts
-|   |   |   +-- api.test.ts
-|   |   |   +-- webhook.test.ts
-|   |   |   +-- rate-limit.test.ts
-|   |   |
-|   |   +-- package.json
-|   |
-|   +-- web/
-|       +-- src/
-|       |   +-- App.tsx
-|       |   +-- App.css
-|       |   +-- index.css
-|       |   +-- main.tsx
-|       +-- package.json
-|
-+-- .gitignore
-+-- README.md
-Getting Started
-Prerequisites
+├── apps/
+│   ├── api/                 # Express API, GitHub integration and review logic
+│   │   ├── prisma/          # Prisma schema and database migrations
+│   │   └── src/             # TypeScript API source
+│   └── web/                 # React + Vite dashboard
+│       └── src/             # Dashboard components and styles
+├── README.md
+└── .gitignore
+```
+
+## Local Development
+
+### Prerequisites
+
 - Node.js and npm
-- PostgreSQL
-- Git
-- A GitHub account
-- A configured GitHub App
+- PostgreSQL database
 - A Google Gemini API key
-1. Clone the Repository
+- A GitHub App installed on a test repository
+- A GitHub OAuth App for dashboard sign-in
+
+### 1. Clone the repository
+
+```bash
 git clone https://github.com/ANSHIKARAJ111/AI-Powered-PR-Reviewer.git
 cd AI-Powered-PR-Reviewer
-2. Install Backend Dependencies
+```
+
+### 2. Install backend dependencies
+
+```bash
 cd apps/api
 npm install
-3. Configure Environment Variables
-Create an .env file in apps/api and configure the required environment variables.
-DATABASE_URL="postgresql://USER:PASSWORD@127.0.0.1:5433/codepilot_db"
-GITHUB_APP_ID="YOUR_GITHUB_APP_ID"
-GITHUB_INSTALLATION_ID="YOUR_INSTALLATION_ID"
-GITHUB_PRIVATE_KEY_PATH="secrets/github-app.pem"
-GITHUB_WEBHOOK_SECRET="YOUR_WEBHOOK_SECRET"
-GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
-The values above are placeholders. Never commit actual API keys, passwords, webhook secrets, or GitHub App private keys.
+```
 
-The example database port matches the project's local development setup. Adjust it to match your PostgreSQL configuration.
-4. Set Up Prisma
-With PostgreSQL running and the database configured:
-npx prisma migrate deploy
+Configure your backend environment using the variables appropriate to your GitHub App, OAuth App, database, and AI provider. A typical configuration includes:
+
+```dotenv
+NODE_ENV=development
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE
+GEMINI_API_KEY=your_gemini_api_key
+GITHUB_APP_ID=your_github_app_id
+GITHUB_INSTALLATION_ID=your_installation_id
+GITHUB_PRIVATE_KEY_PATH=path_to_your_github_app_private_key
+GITHUB_WEBHOOK_SECRET=your_webhook_secret
+GITHUB_OAUTH_CLIENT_ID=your_oauth_client_id
+GITHUB_OAUTH_CLIENT_SECRET=your_oauth_client_secret
+GITHUB_ALLOWED_LOGIN=your_github_username
+SESSION_SECRET=your_long_random_session_secret
+FRONTEND_ORIGIN=http://localhost:5173
+```
+
+> **Important:** Keep `.env` files, private keys, access tokens, and database credentials out of Git. Use deployment environment settings or secret-file facilities in production.
+
+Generate the Prisma client and apply database migrations using the project's Prisma configuration. Then start the API with the script defined in `apps/api/package.json`.
+
+```bash
 npx prisma generate
-5. Start the Backend
-npm run dev
-Local development endpoints:
-- Backend API: http://127.0.0.1:5000
-- GitHub webhook receiver: http://127.0.0.1:5001/api/webhooks/github
-The webhook receiver is a separate local listener. GitHub requires a publicly reachable webhook URL, which must be configured separately.
-6. Start the Frontend
-Open another terminal:
+```
+
+### 3. Install and run the frontend
+
+In a separate terminal:
+
+```bash
 cd apps/web
 npm install
 npm run dev
-Open:
+```
 
-http://localhost:5173
-API Endpoints
-Method	Endpoint	Description
-GET	/api/health	Check backend availability
-GET	/api/reviews	Retrieve stored reviews and findings
-GET	/api/reviews/:id	Retrieve an individual review
-POST	/api/reviews/run	Trigger a review in local development
-GET	/api/github/pulls	Retrieve available GitHub pull requests
-POST	/api/webhooks/github	Receive and verify GitHub webhook events
+Open the URL printed by Vite (typically `http://localhost:5173`). For local authentication and API connectivity, configure the local frontend proxy, OAuth callback URL, and backend to match your development environment.
 
+> **Setup note:** This repository uses a Prisma configuration file and GitHub-specific credentials. Check the scripts in `apps/api/package.json` and the actual Prisma configuration before running migrations or initializing a new database; avoid running destructive database commands against production.
 
-The webhook endpoint is served on the separate webhook port in the local development configuration. The manual review endpoint is intended for local development, not unrestricted public use.
-Automated Testing
-The project uses Vitest for backend testing.
+## Security Considerations
 
-Run the complete test suite:
-cd apps/api
-npx vitest run
-Initial test results:
-Test Suite	Passed
-Basic Validation	5
-API Integration	5
-GitHub Webhook Security	5
-API Rate Limiting	2
-Total	17
+- GitHub webhook payloads are validated against a configured webhook secret.
+- Dashboard authentication uses GitHub OAuth and a signed, HTTP-only session cookie.
+- Access is restricted to a configured GitHub login.
+- Protected API routes require a valid authenticated session in production.
+- Sensitive credentials and GitHub App private keys should only be provided through secure environment variables or secret files.
+- Never commit `.env` files, generated credentials, API keys, or GitHub private keys.
 
+Authentication, review generation, review publishing, and a logged-out request to the reviews API have been manually exercised in the deployed environment. These checks are not a substitute for a complete security audit.
 
-17/17 tests passed during local verification.
+## Validation Highlights
 
-API integration and webhook tests require the local backend to be running. The rate-limit test intentionally sends repeated requests and can temporarily affect other requests to the same local server.
-Security Measures
-CodePilot AI includes several security-focused safeguards:
-- HMAC-SHA256 webhook signature verification
-- Environment-based credential management
-- GitHub App authentication
-- Request rate limiting
-- Request body size limits
-- Zod validation of structured AI findings
-- Validation of GitHub inline comment locations
-- Commit SHA-based duplicate review detection
-- PostgreSQL-backed review publishing state tracking
-Reliability and Limitations
-The implementation includes GitHub publishing retries, database tracking, duplicate review prevention, and a startup recovery mechanism.
+The application has been tested with a sample pull request containing intentional errors. Gemini identified:
 
-Current limitations include:
-- The reference implementation is configured for a specific GitHub repository.
-- Large pull requests with 100 or more changed files require pagination support.
-- Startup recovery is not a fully managed, durable background job queue.
-- Database-backed publishing locks reduce concurrent publishing conflicts but do not guarantee exactly-once delivery under every crash or timeout scenario.
-- AI-generated findings may contain inaccuracies and should be independently verified.
-- Public production deployment requires further security hardening, hosting configuration, and end-to-end production testing.
-Author
-Anshika Raj
+- A **high-severity potential runtime error** from accessing `.name` when `Array.prototype.find()` returns `undefined`.
+- A **medium-severity input validation issue** involving negative prices or discount values.
 
-GitHub: ANSHIKARAJ111
+The dashboard displayed the generated review and both findings, including suggested fixes, and the review was published on GitHub.
+
+## Future Enhancements
+
+- Support multiple authorized users and organizations with role-based access control.
+- Add review rules, severity thresholds, and repository-specific settings.
+- Introduce more comprehensive automated integration and security tests.
+- Add richer analytics, trend tracking, and downloadable reports.
+- Expand AI review support for more languages and larger change sets.
+
+## Project Links
+
+- [Live Web App](https://codepilot-ai-web-navy.vercel.app)
+- [Source Repository](https://github.com/ANSHIKARAJ111/AI-Powered-PR-Reviewer)
+
+---
+
+<div align="center">
+
+**CodePilot AI — Smarter pull requests through AI-assisted code reviews.**
+
+</div>
